@@ -2,7 +2,7 @@
 
 from flask import Flask, render_template, request, redirect, url_for, session
 import json # データをJSON形式で扱うために必要
-
+import os
 app = Flask(__name__)
 app.secret_key = 'your_super_secret_key_here' # セッション管理に必要な秘密鍵。本番ではもっと複雑に！
 
@@ -163,3 +163,10 @@ def calculate_mahjong_score(player_names, points, uma_settings, oka, rate):
 # --- アプリケーションの実行 ---
 if __name__ == '__main__':
     app.run(debug=True) # debug=Trueは開発用。変更を保存すると自動で再起動
+
+    # --- アプリケーションの実行 ---
+if __name__ == '__main__':
+    # Renderは'PORT'という環境変数を使って、アプリが待ち受けるポートを指定します。
+    # host='0.0.0.0' は、外部からのアクセスを許可するために必要です。
+    port = int(os.getenv('PORT', 5000)) # 環境変数'PORT'があればそれを使う。なければデフォルトの5000番。
+    app.run(host='0.0.0.0', port=port, debug=True)
