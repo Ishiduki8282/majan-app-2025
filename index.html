@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>麻雀スコア計算・記録アプリ</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
+        h1, h2 { color: #0056b3; }
+        form { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 30px; }
+        .player-input { margin-bottom: 15px; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
+        .player-input label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .player-input input[type="text"], .player-input input[type="number"] {
+            width: calc(100% - 10px); padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
+        }
+        .settings-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px; }
+        .settings-item label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .settings-item input { width: calc(100% - 10px); padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #0056b3; }
+        .results-section { background-color: #e9f7ef; border: 1px solid #d4edda; padding: 20px; border-radius: 8px; margin-top: 30px; }
+        .results-section h2 { color: #28a745; }
+        .result-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #cfe8d4; }
+        .result-item:last-child { border-bottom: none; }
+        .result-item .name { font-weight: bold; }
+        .result-item .rank { color: #0056b3; }
+        .result-item .score { font-weight: bold; color: #dc3545; }
+        .records-section { background-color: #f0f8ff; border: 1px solid #d1ecf1; padding: 20px; border-radius: 8px; margin-top: 30px; }
+        .records-section h2 { color: #17a2b8; }
+        .record-entry { margin-bottom: 15px; padding: 10px; border: 1px solid #bee5eb; border-radius: 5px; background-color: #fff; }
+        .record-entry h3 { margin-top: 0; color: #17a2b8; font-size: 1.1em; }
+        .record-player-data { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dotted #e0f0f3; }
+        .record-player-data:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+    <h1>🀄 麻雀スコア計算・記録アプリ 🀄</h1>
+
+    <form method="POST">
+        <h2>スコア入力</h2>
+        {% for i in range(1, 5) %}
+        <div class="player-input">
+            <label for="player{{ i }}_name">プレイヤー{{ i }} 名:</label>
+            <input type="text" id="player{{ i }}_name" name="player{{ i }}_name" value="プレイヤー{{ i }}" required>
+            <label for="player{{ i }}_points">プレイヤー{{ i }} 和了点 (持ち点25000からの増減):</label>
+            <input type="number" id="player{{ i }}_points" name="player{{ i }}_points" value="0" step="100">
+        </div>
+        {% endfor %}
+
+        <h2>設定</h2>
+        <div class="settings-grid">
+            <div class="settings-item">
+                <label for="uma_1">ウマ 1位:</label>
+                <input type="number" id="uma_1" name="uma_1" value="{{ settings.uma_1 if settings else 20 }}" step="1">
+            </div>
+            <div class="settings-item">
+                <label for="uma_2">ウマ 2位:</label>
+                <input type="number" id="uma_2" name="uma_2" value="{{ settings.uma_2 if settings else 10 }}" step="1">
+            </div>
+            <div class="settings-item">
+                <label for="uma_3">ウマ 3位:</label>
+                <input type="number" id="uma_3" name="uma_3" value="{{ settings.uma_3 if settings else -10 }}" step="1">
+            </div>
+            <div class="settings-item">
+                <label for="uma_4">ウマ 4位:</label>
+                <input type="number" id="uma_4" name="uma_4" value="{{ settings.uma_4 if settings else -20 }}" step="1">
+            </div>
+            <div class="settings-item">
+                <label for="oka">オカ (1位に加算):</label>
+                <input type="number" id="oka" name="oka" value="{{ settings.oka if settings else 25 }}" step="1">
+            </div>
+            <div class="settings-item">
+                <label for="rate">レート (1.0 = 1000点1円):</label>
+                <input type="number" id="rate" name="rate" value="{{ settings.rate if settings else 1.0 }}" step="0.1">
+            </div>
+        </div>
+        <button type="submit">スコア計算</button>
+    </form>
+
+    {% if results %}
+    <div class="results-section">
+        <h2>計算結果</h2>
+        {% for player_result in results %}
+        <div class="result-item">
+            <span class="name">{{ player_result.name }}</span>
+            <span class="rank">{{ player_result.rank }}位</span>
+            <span class="score">{{ '%+d' % player_result.score }}</span>
+        </div>
+        {% endfor %}
+        <button onclick="saveCurrentRecord()">このゲームを記録する</button>
+    </div>
+    {% endif %}
+
+    <div class="records-section">
+        <h2>過去の記録</h2>
+        {% if records %}
+            {% for date, games_on_date in records.items() %}
+                <h3>{{ date }} の記録</h3>
+                {% for game in games_on_date %}
+                    <div class="record-entry">
+                        {% for name, score in game.playerScores.items() %}
+                            <div class="record-player-data">
+                                <span>{{ name }}</span>
+                                <span>{{ '%+d' % (score * 10) }} ({{ game.playerRanks[name] }}位)</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>まだ記録がありません。</p>
+            {% endfor %}
+        {% else %}
+            <p>まだ記録がありません。</p>
+        {% endif %}
+    </div>
+
+    <script>
+        function saveCurrentRecord() {
+            // 現在の結果データを取得
+            const results = JSON.parse('{{ results | tojson }}'); // FlaskのJinja2でPythonの変数をJavaScriptに渡す
+
+            if (!results) {
+                alert('計算結果がありません。');
+                return;
+            }
+
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0'); // 月は0から始まるため+1
+            const day = String(today.getDate()).padStart(2, '0');
+            const formattedDate = `${year}-${month}-${day}`;
+
+            const playerScores = {};
+            const playerRanks = {};
+
+            results.forEach(p => {
+                playerScores[p.name] = p.score / 10; // 記録は小数点以下1桁の形に戻す
+                playerRanks[p.name] = p.rank;
+            });
+
+            const recordData = {
+                date: formattedDate,
+                playerScores: playerScores,
+                playerRanks: playerRanks
+            };
+
+            // フォームを作成し、POSTリクエストでデータを送信
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/save_record';
+
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'record_data';
+            input.value = JSON.stringify(recordData);
+            form.appendChild(input);
+
+            document.body.appendChild(form);
+            form.submit(); // フォームを送信
+        }
+    </script>
+</body>
+</html>
